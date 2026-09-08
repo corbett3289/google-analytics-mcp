@@ -1,4 +1,4 @@
-# Google Analytics MCP Server (Experimental)
+# Google Analytics MCP Server - Codex Read-Only Fork
 
 [![PyPI version](https://img.shields.io/pypi/v/analytics-mcp.svg)](https://pypi.org/project/analytics-mcp/)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
@@ -11,6 +11,33 @@
 This repo contains the source code for running a local
 [MCP](https://modelcontextprotocol.io) server that interacts with APIs for
 [Google Analytics](https://support.google.com/analytics).
+
+> [!IMPORTANT]
+> This is a personal security-hardening fork for local Codex use, not an
+> official Google release. It is based on upstream commit
+> `a8ca729d4a8fa99bffe87962c17c0539c6aa9da7`.
+
+## What's different in this fork
+
+The upstream server already exposed Analytics information and report reads.
+This fork hardens the credentials, model-visible boundary, and local deployment
+used for AI access.
+
+| Area | Audited upstream | This fork |
+| --- | --- | --- |
+| OAuth | Application Default Credentials setup included `analytics.readonly` and broad `cloud-platform` scope. | Dedicated Desktop OAuth token must contain exactly `analytics.readonly`; wider, incomplete, or unexpected-endpoint credentials are rejected. |
+| Authentication boundary | Credential setup and runtime used ambient ADC. | Human runs a separate loopback/S256-PKCE helper; authentication is never an MCP tool, and the server never starts a browser. |
+| Analytics properties | Every property reachable by the credential could be queried. | `ANALYTICS_MCP_ALLOWED_PROPERTY_IDS` is enforced centrally and defaults to deny-all. Account discovery is filtered to allowed properties. |
+| Tool surface | Nine information/report tools, without a fork-level tool registry invariant. | Ten names are pinned, including non-network `get_capabilities`; every tool is annotated read-only/open-world, and any unreviewed registry change fails startup. |
+| Query/output bounds | Report calls allowed API-scale row limits and returned whole serialized responses. | Reports default to 1,000 rows, can never exceed 10,000, and model-visible output has byte and Codex token ceilings. |
+| Codex deployment | Upstream documentation targeted floating package execution and other clients. | Codex uses the audited checkout's virtual environment over STDIO with a second enabled-tool allowlist, prompt approvals, and required startup. |
+| Dependencies and secrets | Runtime dependency ranges were not committed as a lock; credential ignore patterns were limited. | `uv.lock` freezes the environment; OAuth material must stay outside the checkout, token writes are atomic, symlink targets are rejected, and Windows ACL setup is documented. |
+| Errors and hostile data | Unexpected failures could expose detailed exception text or tracebacks. | Unexpected details are sanitized, MCP failures are marked as errors, and server instructions classify Analytics strings as untrusted data rather than instructions. |
+| Verification | Upstream test coverage. | Security invariants, real STDIO negotiation/calls, packaging, static checks, dependency audit, and secret scanning are recorded in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). |
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the implementation history and
+[`config/codex.example.toml`](config/codex.example.toml) for the reviewed Codex
+profile.
 
 Join the discussion and ask questions in the
 [🤖-analytics-mcp channel](https://discord.com/channels/971845904002871346/1398002598665257060)

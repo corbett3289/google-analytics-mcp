@@ -27,5 +27,8 @@
 - Hardened and read back the Windows credential-directory ACL.
 - Replaced the Windows OAuth example with a single-line, explicit-interpreter
   command to avoid console-launcher and PowerShell continuation mistakes.
+- Added a prominent upstream-versus-fork comparison to the README covering the
+  security model, OAuth, property/tool boundaries, limits, Codex deployment,
+  dependency freezing, error handling, and verification.
 - Verified 26 tests including a real STDIO handshake, package builds, formatting,
   critical lint, Bandit, `pip-audit`, and secret scanning.
