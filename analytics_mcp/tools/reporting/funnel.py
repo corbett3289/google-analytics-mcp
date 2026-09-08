@@ -26,6 +26,7 @@ from analytics_mcp.tools.utils import (
     proto_to_dict,
 )
 from analytics_mcp.tools.client import create_data_api_alpha_client
+from analytics_mcp.policy import ToolInputError, validate_report_limit
 from google.analytics import data_v1alpha
 
 
@@ -134,12 +135,12 @@ async def run_funnel_report(
         Exception: If the API request fails
     """
     if not funnel_steps:
-        raise ValueError("funnel_steps must contain at least one step")
+        raise ToolInputError("funnel_steps must contain at least one step")
 
     steps = []
     for i, step in enumerate(funnel_steps):
         if not isinstance(step, dict):
-            raise ValueError(f"Step {i+1} must be a dictionary")
+            raise ToolInputError(f"Step {i+1} must be a dictionary")
 
         step_name = step.get("name", f"Step {i+1}")
 
@@ -154,7 +155,7 @@ async def run_funnel_report(
                 )
             )
         else:
-            raise ValueError(
+            raise ToolInputError(
                 f"Step {i+1} must contain either 'filter_expression' or 'event' key"
             )
 
@@ -184,7 +185,9 @@ async def run_funnel_report(
             )
         )
         if "limit" in funnel_next_action:
-            next_action_config.limit = funnel_next_action["limit"]
+            next_action_config.limit = validate_report_limit(
+                funnel_next_action["limit"]
+            )
         request.funnel_next_action = next_action_config
 
     if segments:

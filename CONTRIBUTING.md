@@ -71,32 +71,14 @@ the repo:
 When running the `gemini` command from a terminal, add the `--debug` option so
 Gemini outputs debug information as it processes prompts.
 
-### Test from GitHub
+### Test the reviewed checkout in Codex
 
-After you push changes to GitHub, use `pipx` to run the server for a specific
-branch, and use the `--no-cache` option so `pipx` gets the
-latest changes.
+Do not test this profile through a floating `pipx`/GitHub command or Application
+Default Credentials. That can execute code other than the revision under review
+and bypasses the dedicated read-only OAuth design.
 
-Here's an example of an `mcpServers` entry that runs the latest code from a
-branch named `awesome-feature-42` in this repo:
-
-```json
-{
-  "mcpServers": {
-    "analytics-mcp": {
-      "command": "pipx",
-      "args": [
-        "run",
-        "--no-cache",
-        "--spec",
-        "git+https://github.com/googleanalytics/google-analytics-mcp.git@awesome-feature-42",
-        "analytics-mcp"
-      ],
-      "env": {
-        "GOOGLE_APPLICATION_CREDENTIALS": "PATH_TO_CREDENTIALS_JSON",
-        "GOOGLE_PROJECT_ID": "YOUR_PROJECT_ID"
-      }
-    }
-  }
-}
-```
+From the exact branch or commit being reviewed, run `uv sync --frozen`, use the
+standalone `analytics-mcp-auth login` command described in the README, and point
+Codex at that checkout's virtual-environment interpreter. Start from
+`config/codex.example.toml`, keep the explicit tool and property allowlists, and
+run the unit/STDIO suite before credentialed testing.

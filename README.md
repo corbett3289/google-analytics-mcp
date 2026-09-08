@@ -25,6 +25,11 @@ and
 to provide several
 [Tools](https://modelcontextprotocol.io/docs/concepts/tools) for use with LLMs.
 
+This fork exposes only the ten tools pinned in `analytics_mcp/policy.py`. The
+`get_capabilities` tool reports the effective read-only policy without making a
+Google request or starting OAuth. No login, create, update, or delete tool is
+registered.
+
 ### Retrieve account and property information 🟠
 
 - `get_account_summaries`: Retrieves information about the user's Google
@@ -32,11 +37,13 @@ to provide several
 - `get_property_details`: Returns details about a property.
 - `list_google_ads_links`: Returns a list of links to Google Ads accounts for
   a property.
+- `list_property_annotations`: Returns annotations for an allowed property.
 
 ### Run core reports 📙
 
 - `run_report`: Runs a Google Analytics report using the Data API.
 - `run_funnel_report`: Runs a Google Analytics funnel report using the Data API.
+- `run_conversions_report`: Runs a conversion-focused report using the Data API.
 - `get_custom_dimensions_and_metrics`: Retrieves the custom dimensions and
   metrics for a specific property.
 
@@ -45,23 +52,20 @@ to provide several
 - `run_realtime_report`: Runs a Google Analytics realtime report using the
   Data API.
 
-## Setup instructions 🔧
+## Codex read-only setup 🔧
 
-✨ Watch the [Google Analytics MCP Setup
-Tutorial](https://youtu.be/nS8HLdwmVlY) on YouTube for a step-by-step
-walkthrough of these instructions.
+This branch is intended for a reviewed, checkout-bound local installation. Do
+not launch it with an unversioned `pipx run` or `uvx` command: those can execute
+a package revision other than the one you audited.
 
-[![Watch the video](https://img.youtube.com/vi/nS8HLdwmVlY/mqdefault.jpg)](https://www.youtube.com/watch?v=nS8HLdwmVlY)
+Prerequisites:
 
-Setup involves the following steps:
-
-1.  Configure Python.
-1.  Configure credentials for Google Analytics.
-1.  Configure Gemini.
-
-### Configure Python 🐍
-
-[Install pipx](https://pipx.pypa.io/stable/#install-pipx).
+- Python 3.10 or newer, managed directly or by
+  [uv](https://docs.astral.sh/uv/).
+- A Google Cloud project with the two Analytics APIs below enabled.
+- A Google OAuth client whose application type is **Desktop app**.
+- A Google user who has access only to the Analytics properties the AI should
+  read.
 
 ### Enable APIs in your project ✅
 
@@ -71,104 +75,85 @@ to enable the following APIs in your Google Cloud project:
 - [Google Analytics Admin API](https://console.cloud.google.com/apis/library/analyticsadmin.googleapis.com)
 - [Google Analytics Data API](https://console.cloud.google.com/apis/library/analyticsdata.googleapis.com)
 
-### Configure credentials 🔑
+### Create the frozen environment
 
-Configure your [Application Default Credentials
-(ADC)](https://cloud.google.com/docs/authentication/provide-credentials-adc).
-Make sure the credentials are for a user with access to your Google Analytics
-accounts or properties.
+From the reviewed checkout:
 
-Credentials must include the Google Analytics read-only scope:
-
+```powershell
+uv sync --frozen --python 3.11
 ```
+
+### Create the dedicated OAuth token 🔑
+
+Keep the Desktop client JSON and generated token outside the repository. The
+standalone helper uses a system-browser loopback flow with PKCE, requests only
+this scope, and atomically writes `token.readonly.json`:
+
+```text
 https://www.googleapis.com/auth/analytics.readonly
 ```
 
-Check out
-[Manage OAuth Clients](https://support.google.com/cloud/answer/15549257)
-for how to create an OAuth client.
+On Windows PowerShell:
 
-Here are some sample `gcloud` commands you might find useful:
+```powershell
+$oauthDir = "$env:LOCALAPPDATA/google-analytics-mcp"
+New-Item -ItemType Directory -Force -Path $oauthDir | Out-Null
+$currentAccount = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+& icacls.exe $oauthDir /inheritance:r /grant:r `
+  "${currentAccount}:(OI)(CI)F" `
+  "*S-1-5-18:(OI)(CI)F" `
+  "*S-1-5-32-544:(OI)(CI)F"
+& icacls.exe $oauthDir
 
-- Set up ADC using user credentials and an OAuth desktop or web client after
-  downloading the client JSON to `YOUR_CLIENT_JSON_FILE`.
-
-  ```shell
-  gcloud auth application-default login \
-    --scopes https://www.googleapis.com/auth/analytics.readonly,https://www.googleapis.com/auth/cloud-platform \
-    --client-id-file=YOUR_CLIENT_JSON_FILE
-  ```
-
-- Set up ADC using service account impersonation.
-
-  ```shell
-  gcloud auth application-default login \
-    --impersonate-service-account=SERVICE_ACCOUNT_EMAIL \
-    --scopes=https://www.googleapis.com/auth/analytics.readonly,https://www.googleapis.com/auth/cloud-platform
-  ```
-
-When the `gcloud auth application-default` command completes, copy the
-`PATH_TO_CREDENTIALS_JSON` file location printed to the console in the
-following message. You'll need this for the next step!
-
-```
-Credentials saved to file: [PATH_TO_CREDENTIALS_JSON]
+$env:ANALYTICS_MCP_OAUTH_CLIENT_SECRETS_FILE = `
+  "C:/Users/YOU/AppData/Local/google-analytics-mcp/client_secrets.json"
+$env:ANALYTICS_MCP_TOKEN_FILE = `
+  "C:/Users/YOU/AppData/Local/google-analytics-mcp/token.readonly.json"
+uv run --frozen analytics-mcp-auth login
 ```
 
-### Configure Gemini
+Authentication is deliberately not an MCP tool. A model cannot open the
+browser, replace the token, or broaden its scope. Re-run the terminal command
+with `--force` only when you intentionally want to replace the current grant.
 
-1.  Install [Gemini
-    CLI](https://github.com/google-gemini/gemini-cli/blob/main/docs/get-started/installation.md)
-    or [Gemini Code
-    Assist](https://marketplace.visualstudio.com/items?itemName=Google.geminicodeassist).
+Do not reuse an ADC file or another server's token. A Desktop OAuth client JSON
+may be shared deliberately, but a separate Analytics client is easier to revoke
+and audit. The Windows ACL step keeps the current user, Local System, and local
+Administrators while removing broader inherited access; review its printed
+result before login.
 
-1.  Create or edit the file at `~/.gemini/settings.json`, adding your server
-    to the `mcpServers` list.
+### Configure the property boundary
 
-    Replace `PATH_TO_CREDENTIALS_JSON` with the path you copied in the previous
-    step.
+The server denies every property until the operator sets
+`ANALYTICS_MCP_ALLOWED_PROPERTY_IDS` to a comma-separated list such as
+`123456789,properties/987654321`. Use `*` only when every property accessible
+to the Google account is intentionally in scope.
 
-    We also recommend that you add a `GOOGLE_CLOUD_PROJECT` attribute to the
-    `env` object. Replace `YOUR_PROJECT_ID` in the following example with the
-    [project ID](https://support.google.com/googleapi/answer/7014113) of your
-    Google Cloud project.
+Copy the numeric **Property ID** from that property's details in Google
+Analytics Admin, then place it in the Codex configuration and restart Codex.
+Property discovery is intentionally unavailable while the allowlist is empty;
+do not temporarily use `*` just to discover IDs.
 
-    ```json
-    {
-      "mcpServers": {
-        "analytics-mcp": {
-          "command": "pipx",
-          "args": ["run", "analytics-mcp"],
-          "env": {
-            "GOOGLE_APPLICATION_CREDENTIALS": "PATH_TO_CREDENTIALS_JSON",
-            "GOOGLE_PROJECT_ID": "YOUR_PROJECT_ID"
-          }
-        }
-      }
-    }
-    ```
+`ANALYTICS_MCP_MAX_ROWS` defaults to 1,000 and can never exceed 10,000. Smaller
+requests and pagination are preferred for model context and Analytics quota.
+Serialized tool output is also rejected above 1,000,000 bytes by default so an
+oversized response cannot flood the model context.
 
-### Configure Claude Code
+### Configure Codex
 
-1.  Add the MCP server with the following command:
+Copy and edit [`config/codex.example.toml`](config/codex.example.toml), then
+place its server section in `~/.codex/config.toml`. It binds Codex to this
+checkout's virtual environment, uses STDIO only, pins the visible tool names,
+and requests approval for every credentialed call.
 
-    Replace `PATH_TO_CREDENTIALS_JSON` with the path you copied in the previous
-    step, and replace `YOUR_PROJECT_ID` with the
-    [project ID](https://support.google.com/googleapi/answer/7014113) of your
-    Google Cloud project.
-
-    ```shell
-    claude mcp add analytics-mcp \
-      --scope user \
-      -e "GOOGLE_APPLICATION_CREDENTIALS=PATH_TO_CREDENTIALS_JSON" \
-      -e "GOOGLE_PROJECT_ID=YOUR_PROJECT_ID" \
-      -- pipx run analytics-mcp
-    ```
+Restart the local Codex client after changing MCP configuration. Use `/mcp` to
+confirm the server is attached, then call `get_capabilities` before making a
+small approved read.
 
 ## Try it out 🥼
 
-Launch Gemini Code Assist or Gemini CLI and type `/mcp`. You should see
-`analytics-mcp` listed in the results.
+In Codex, type `/mcp`. You should see `google_analytics_readonly` listed in the
+results.
 
 Here are some sample prompts to get you started:
 

@@ -1,0 +1,43 @@
+# Merge this example into ~/.codex/config.toml and replace every placeholder.
+# Keep OAuth files outside the repository.
+
+[mcp_servers.google_analytics_readonly]
+command = "C:/google-analytics-mcp/.venv/Scripts/python.exe"
+args = ["-m", "analytics_mcp.server"]
+cwd = "C:/google-analytics-mcp"
+enabled = true
+required = true
+startup_timeout_sec = 30
+tool_timeout_sec = 180
+default_tools_approval_mode = "prompt"
+enabled_tools = [
+    "get_capabilities",
+    "get_account_summaries",
+    "list_google_ads_links",
+    "get_property_details",
+    "list_property_annotations",
+    "get_custom_dimensions_and_metrics",
+    "run_report",
+    "run_realtime_report",
+    "run_funnel_report",
+    "run_conversions_report",
+]
+
+[mcp_servers.google_analytics_readonly.env]
+ANALYTICS_MCP_TOKEN_FILE = "C:/Users/YOU/AppData/Local/google-analytics-mcp/token.readonly.json"
+ANALYTICS_MCP_ALLOWED_PROPERTY_IDS = "123456789"
+ANALYTICS_MCP_MAX_ROWS = "1000"
+ANALYTICS_MCP_MAX_RESPONSE_BYTES = "1000000"
+PYTHONNOUSERSITE = "1"
+
+[mcp_servers.google_analytics_readonly.tools.run_report]
+output_token_limit = 12000
+
+[mcp_servers.google_analytics_readonly.tools.run_realtime_report]
+output_token_limit = 12000
+
+[mcp_servers.google_analytics_readonly.tools.run_funnel_report]
+output_token_limit = 12000
+
+[mcp_servers.google_analytics_readonly.tools.run_conversions_report]
+output_token_limit = 12000

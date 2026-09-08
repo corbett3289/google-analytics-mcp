@@ -62,6 +62,13 @@ coverage.xml
 # System test environment variables.
 system_tests/local_test_setup
 
+# OAuth and Google credential material must never enter the repository.
+client_secret*.json
+client_secrets*.json
+credentials*.json
+application_default_credentials.json
+token*.json
+
 # Make sure a generated file isn't accidentally committed.
 pylintrc
 pylintrc.test

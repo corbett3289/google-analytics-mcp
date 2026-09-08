@@ -19,6 +19,7 @@ from typing import Any, Dict, List
 
 from analytics_mcp.tools.utils import (
     construct_property_rn,
+    filter_account_summaries,
     proto_to_dict,
 )
 from analytics_mcp.tools.client import (
@@ -31,9 +32,15 @@ from google.analytics import admin_v1beta, admin_v1alpha
 async def get_account_summaries() -> List[Dict[str, Any]]:
     """Retrieves information about the user's Google Analytics accounts and properties."""
 
+    # Fail before credential loading or a Google API call when policy denies all.
+    filter_account_summaries([])
+
     def _sync_call():
         summary_pager = create_admin_api_client().list_account_summaries()
-        return [proto_to_dict(summary_page) for summary_page in summary_pager]
+        summaries = [
+            proto_to_dict(summary_page) for summary_page in summary_pager
+        ]
+        return filter_account_summaries(summaries)
 
     return await asyncio.to_thread(_sync_call)
 

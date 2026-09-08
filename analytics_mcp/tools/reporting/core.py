@@ -28,6 +28,7 @@ from analytics_mcp.tools.utils import (
     proto_to_dict,
 )
 from analytics_mcp.tools.client import create_data_api_client
+from analytics_mcp.policy import validate_report_limit, validate_report_offset
 from google.analytics import data_v1beta
 
 
@@ -125,9 +126,9 @@ async def run_report(
         order_bys: A list of Data API OrderBy
           (https://developers.google.com/analytics/devguides/reporting/data/v1/rest/v1beta/OrderBy)
           objects to apply to the dimensions and metrics.
-        limit: The maximum number of rows to return in each response. Value must
-          be a positive integer <= 250,000. Used to paginate through large
-          reports, following the guide at
+        limit: The maximum number of rows to return in each response. The local
+          AI profile applies a configurable ceiling no greater than 10,000.
+          Used to paginate through large reports, following the guide at
           https://developers.google.com/analytics/devguides/reporting/data/v1/basics#pagination.
         offset: The row count of the start row. The first row is counted as row
           0. Used to paginate through large
@@ -161,10 +162,10 @@ async def run_report(
             data_v1beta.OrderBy(order_by) for order_by in order_bys
         ]
 
-    if limit:
-        request.limit = limit
-    if offset:
-        request.offset = offset
+    request.limit = validate_report_limit(limit)
+    validated_offset = validate_report_offset(offset)
+    if validated_offset is not None:
+        request.offset = validated_offset
     if currency_code:
         request.currency_code = currency_code
 

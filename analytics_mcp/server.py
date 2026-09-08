@@ -18,16 +18,19 @@
 
 import asyncio
 import sys
-import analytics_mcp.coordinator as coordinator
+
+import mcp.server
+import mcp.server.stdio
 from mcp.server.lowlevel import NotificationOptions
 from mcp.server.models import InitializationOptions
-import mcp.server.stdio
-import mcp.server
-import traceback
 
 
 async def run_server_async():
     """Runs the MCP server over standard I/O."""
+    # Import inside the guarded runtime so policy-registration failures are
+    # reported without a traceback or a misleading successful exit.
+    import analytics_mcp.coordinator as coordinator
+
     print("Starting MCP Stdio Server:", coordinator.app.name, file=sys.stderr)
     async with mcp.server.stdio.stdio_server() as (read_stream, write_stream):
         await coordinator.app.run(
@@ -46,19 +49,21 @@ async def run_server_async():
 
 
 def run_server():
-    """Synchronous wrapper to run the async MCP server."""
-    asyncio.run(run_server_async())
+    """Run the server and report fatal failures with a nonzero exit status."""
+    try:
+        asyncio.run(run_server_async())
+    except KeyboardInterrupt:
+        print("\nMCP Server (stdio) stopped by user.", file=sys.stderr)
+    except Exception as exc:
+        print(
+            "MCP Server (stdio) encountered an error of type "
+            f"{type(exc).__name__}.",
+            file=sys.stderr,
+        )
+        raise SystemExit(1) from None
+    finally:
+        print("MCP Server (stdio) process exiting.", file=sys.stderr)
 
 
 if __name__ == "__main__":
-    try:
-        run_server()
-    except KeyboardInterrupt:
-        print("\nMCP Server (stdio) stopped by user.", file=sys.stderr)
-    except Exception:
-        import traceback
-
-        print("MCP Server (stdio) encountered an error:", file=sys.stderr)
-        traceback.print_exc()
-    finally:
-        print("MCP Server (stdio) process exiting.", file=sys.stderr)
+    run_server()

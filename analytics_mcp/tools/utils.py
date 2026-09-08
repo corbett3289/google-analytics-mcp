@@ -14,9 +14,17 @@
 
 """Common utilities used by the MCP server."""
 
+import copy
 from typing import Any, Dict
 
 import proto
+
+from analytics_mcp.policy import (
+    PropertyAccessDenied,
+    ToolInputError,
+    get_allowed_property_ids,
+    require_property_access,
+)
 
 
 def construct_property_rn(property_value: int | str) -> str:
@@ -33,7 +41,7 @@ def construct_property_rn(property_value: int | str) -> str:
             if numeric_part.isdigit():
                 property_num = int(numeric_part)
     if property_num is None:
-        raise ValueError(
+        raise ToolInputError(
             (
                 f"Invalid property ID: {property_value}. "
                 "A valid property value is either a number or a string starting "
@@ -41,7 +49,37 @@ def construct_property_rn(property_value: int | str) -> str:
             )
         )
 
+    require_property_access(property_num)
     return f"properties/{property_num}"
+
+
+def filter_account_summaries(
+    summaries: list[Dict[str, Any]],
+) -> list[Dict[str, Any]]:
+    """Return only account/property metadata allowed by operator policy."""
+    allowed = get_allowed_property_ids()
+    if allowed is None:
+        return summaries
+    if not allowed:
+        raise PropertyAccessDenied(
+            "Google Analytics account discovery is disabled until the operator "
+            "configures ANALYTICS_MCP_ALLOWED_PROPERTY_IDS."
+        )
+
+    filtered_summaries: list[Dict[str, Any]] = []
+    for summary in summaries:
+        properties = summary.get("property_summaries", [])
+        allowed_properties = []
+        for property_summary in properties:
+            resource_name = property_summary.get("property", "")
+            numeric_part = resource_name.removeprefix("properties/")
+            if numeric_part.isdigit() and int(numeric_part) in allowed:
+                allowed_properties.append(property_summary)
+        if allowed_properties:
+            filtered_summary = copy.deepcopy(summary)
+            filtered_summary["property_summaries"] = allowed_properties
+            filtered_summaries.append(filtered_summary)
+    return filtered_summaries
 
 
 def proto_to_dict(obj: proto.Message) -> Dict[str, Any]:

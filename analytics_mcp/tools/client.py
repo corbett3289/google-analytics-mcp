@@ -14,20 +14,18 @@
 
 """Client initialization for the Google Analytics APIs."""
 
-import contextlib
-import subprocess
 import threading
 from importlib import metadata
-from unittest.mock import patch
 
-import google.auth
 from google.analytics import (
-    admin_v1beta,
-    data_v1beta,
     admin_v1alpha,
+    admin_v1beta,
     data_v1alpha,
+    data_v1beta,
 )
 from google.api_core.gapic_v1.client_info import ClientInfo
+
+from analytics_mcp.auth import load_read_only_credentials
 
 
 def _get_package_version_with_fallback():
@@ -37,7 +35,7 @@ def _get_package_version_with_fallback():
     """
     try:
         return metadata.version("analytics-mcp")
-    except:
+    except metadata.PackageNotFoundError:
         return "unknown"
 
 
@@ -46,43 +44,17 @@ _CLIENT_INFO = ClientInfo(
     user_agent=f"analytics-mcp/{_get_package_version_with_fallback()}"
 )
 
-# Read-only scope for Analytics Admin API and Analytics Data API.
-_READ_ONLY_ANALYTICS_SCOPE = (
-    "https://www.googleapis.com/auth/analytics.readonly"
-)
-
 # Lock to ensure client and credential creation is thread-safe
 _client_lock = threading.Lock()
 _CREDENTIALS = None
 
 
-@contextlib.contextmanager
-def prevent_stdio_inheritance():
-    """Prevents child processes from inheriting the parent's stdio handles.
-
-    Fixes a deadlock on Windows where `google.auth.default()` spawns `gcloud`
-    via subprocess without redirecting stdin, causing it to inherit the
-    ProactorEventLoop's overlapping I/O handles used by MCP's stdio transport.
-    """
-    original_popen = subprocess.Popen
-
-    def safe_popen(*args, **kwargs):
-        if kwargs.get("stdin") is None:
-            kwargs["stdin"] = subprocess.DEVNULL
-        return original_popen(*args, **kwargs)
-
-    with patch("subprocess.Popen", new=safe_popen):
-        yield
-
-
 def _get_credentials():
+    """Return the dedicated read-only OAuth credential, never ambient ADC."""
     global _CREDENTIALS
     # Expected to be called under _client_lock
     if _CREDENTIALS is None:
-        with prevent_stdio_inheritance():
-            _CREDENTIALS, _ = google.auth.default(
-                scopes=[_READ_ONLY_ANALYTICS_SCOPE]
-            )
+        _CREDENTIALS = load_read_only_credentials()
     return _CREDENTIALS
 
 
