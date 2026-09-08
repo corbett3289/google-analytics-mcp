@@ -99,18 +99,16 @@ On Windows PowerShell:
 $oauthDir = "$env:LOCALAPPDATA/google-analytics-mcp"
 New-Item -ItemType Directory -Force -Path $oauthDir | Out-Null
 $currentAccount = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
-& icacls.exe $oauthDir /inheritance:r /grant:r `
-  "${currentAccount}:(OI)(CI)F" `
-  "*S-1-5-18:(OI)(CI)F" `
-  "*S-1-5-32-544:(OI)(CI)F"
+& icacls.exe $oauthDir /inheritance:r /grant:r "${currentAccount}:(OI)(CI)F" "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F"
 & icacls.exe $oauthDir
 
-$env:ANALYTICS_MCP_OAUTH_CLIENT_SECRETS_FILE = `
-  "C:/Users/YOU/AppData/Local/google-analytics-mcp/client_secrets.json"
-$env:ANALYTICS_MCP_TOKEN_FILE = `
-  "C:/Users/YOU/AppData/Local/google-analytics-mcp/token.readonly.json"
-uv run --frozen analytics-mcp-auth login
+& "C:\google-analytics-mcp\.venv\Scripts\python.exe" -m analytics_mcp.auth login --client-secrets "$oauthDir\client_secrets.json"
 ```
+
+Each executable PowerShell line is intentionally self-contained; do not add a
+shell backslash or continuation character. To reuse only the existing hardened
+GSC Desktop client registration, replace the final `--client-secrets` value with
+`$env:LOCALAPPDATA\mcp-gsc\client_secrets.json`. Never reuse its token.
 
 Authentication is deliberately not an MCP tool. A model cannot open the
 browser, replace the token, or broaden its scope. Re-run the terminal command

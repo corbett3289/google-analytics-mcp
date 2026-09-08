@@ -25,5 +25,7 @@
   Codex configuration as a required server; OAuth consent and property selection
   remain separate operator actions.
 - Hardened and read back the Windows credential-directory ACL.
+- Replaced the Windows OAuth example with a single-line, explicit-interpreter
+  command to avoid console-launcher and PowerShell continuation mistakes.
 - Verified 26 tests including a real STDIO handshake, package builds, formatting,
   critical lint, Bandit, `pip-audit`, and secret scanning.
