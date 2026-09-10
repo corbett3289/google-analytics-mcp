@@ -90,8 +90,8 @@ human-run command and is not exposed to MCP.
 - A full-tree `detect-secrets` scan found no credential material. Its only hits
   were the OAuth environment-variable name, explicit test placeholders, and
   pre-existing skill integrity hashes; each was inspected manually.
-- Codex parses the installed local configuration and reports
-  `google_analytics_readonly` enabled and optional with the checkout-bound
+- The installed local configuration sets `required = false`; Codex parses it
+  and reports `google_analytics_readonly` enabled with the checkout-bound
   interpreter.
 - The deployed Windows credential directory has protected inheritance and only
   the current user, Local System, and local Administrators retain access. The
