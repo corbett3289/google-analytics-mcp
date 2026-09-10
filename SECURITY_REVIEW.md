@@ -1,6 +1,6 @@
 # Security review: Codex read-only profile
 
-Review date: 2026-09-08
+Review date: 2026-09-10
 
 Upstream reviewed commit: `a8ca729d4a8fa99bffe87962c17c0539c6aa9da7`
 
@@ -42,6 +42,8 @@ human-run command and is not exposed to MCP.
 - Model-visible tools are pinned by name and annotated read-only/open-world.
 - Property access is deny-all until configured by the operator.
 - Local server transport is STDIO only.
+- The Codex profile is enabled but optional (`required = false`) so this
+  integration cannot make unrelated task startup depend on Analytics.
 - Analytics response text is untrusted data, never agent instruction.
 - Codex config adds its own enabled-tool allowlist and prompt approvals.
 
@@ -59,17 +61,29 @@ human-run command and is not exposed to MCP.
   updating Google client libraries or adding tools.
 - Dependency audits identify published known vulnerabilities, not malicious or
   previously unknown package behavior. Review lockfile changes before syncing.
+- Codex may run one STDIO server per client or agent host. Multiple sibling
+  processes can be legitimate; persistent single-process reuse would require a
+  separately reviewed HTTP or broker deployment.
+- Google API calls currently use synchronous client methods in worker threads.
+  An MCP disconnect during an in-flight RPC can delay interpreter exit until
+  that underlying request returns; keeping the server optional limits the host
+  impact. Explicit RPC deadlines or async Google clients require separate live
+  API validation before adoption.
 
 ## Verification
 
-- All 26 unit/integration tests pass on Python 3.11.16, including an offline
+- All 27 unit/integration tests pass on Python 3.11.16, including an offline
   assertion that the real OAuth library generates an S256 PKCE request with the
   exact read-only scope.
 - The integration suite completes real STDIO `initialize`, `tools/list`,
   `get_capabilities`, and denied-property calls, proving the exact ten-tool set,
   annotations, and fail-closed behavior without OAuth.
-- Bytecode compilation, the repository's Black check, critical Ruff checks,
-  `git diff --check`, and Bandit's medium/high-severity scan pass.
+- A process-level regression test closes the server's standard input and
+  requires a clean, timely exit, covering the disconnect signal used by local
+  STDIO clients. A separate Windows parent-disconnect probe also exited cleanly.
+- Bytecode compilation, the modified Python file's Black check, critical Ruff
+  checks, and `git diff --check` pass. The earlier full-tree Bandit scan remains
+  unchanged because this update does not modify runtime code.
 - The source distribution and wheel build successfully.
 - `uv lock --check` passes, and `pip-audit` reports no known vulnerabilities in
   the 76-package frozen virtual environment as checked on 2026-09-08.
@@ -77,7 +91,7 @@ human-run command and is not exposed to MCP.
   were the OAuth environment-variable name, explicit test placeholders, and
   pre-existing skill integrity hashes; each was inspected manually.
 - Codex parses the installed local configuration and reports
-  `google_analytics_readonly` enabled and required with the checkout-bound
+  `google_analytics_readonly` enabled and optional with the checkout-bound
   interpreter.
 - The deployed Windows credential directory has protected inheritance and only
   the current user, Local System, and local Administrators retain access. The

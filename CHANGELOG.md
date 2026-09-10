@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-10 - Codex startup resilience and lifecycle verification
+
+- Investigated a project-chat resume failure that coincided with many sibling
+  local MCP processes. The direct failure was another required MCP server's
+  initialization handshake, not an Analytics MCP functional failure.
+- Changed the reviewed Codex example and recommendation to keep Analytics
+  enabled with `required = false`, so a transient Analytics startup failure
+  cannot abort unrelated Codex task startup or resume.
+- Verified that this server does not spawn copies of itself and that idle and
+  initialized STDIO processes exit cleanly after standard-input EOF and after
+  their parent client disconnects on Windows.
+- Added a process-level EOF shutdown regression test. No speculative singleton
+  or shutdown mechanism was added because the existing lifecycle passed.
+- Documented that multiple sibling STDIO instances may be legitimate—one per
+  Codex client or agent host—and that persistent single-process reuse would be
+  a separately reviewed HTTP or broker architecture change.
+
 ## 2026-09-08 - Codex read-only hardening
 
 - Cloned and reviewed upstream commit

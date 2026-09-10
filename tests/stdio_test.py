@@ -7,6 +7,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -65,6 +66,45 @@ class TestStdioServer(unittest.IsolatedAsyncioTestCase):
         denied = json.loads(denied_result.content[0].text)
         self.assertTrue(denied_result.isError)
         self.assertEqual(denied["error_type"], "PropertyAccessDenied")
+
+
+class TestStdioLifecycle(unittest.TestCase):
+    def test_process_exits_after_stdin_eof(self):
+        with tempfile.TemporaryDirectory() as directory:
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "ANALYTICS_MCP_CONFIG_DIR": directory,
+                    "ANALYTICS_MCP_ALLOWED_PROPERTY_IDS": "",
+                    "PYTHONNOUSERSITE": "1",
+                }
+            )
+            with subprocess.Popen(
+                [sys.executable, "-m", "analytics_mcp.server"],
+                cwd=os.getcwd(),
+                env=environment,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            ) as process:
+                try:
+                    self.assertIsNotNone(process.stdin)
+                    process.stdin.close()
+                    return_code = process.wait(timeout=30)
+                except BaseException:
+                    process.kill()
+                    process.wait()
+                    raise
+
+                self.assertIsNotNone(process.stdout)
+                self.assertIsNotNone(process.stderr)
+                stdout = process.stdout.read()
+                stderr = process.stderr.read()
+
+            self.assertEqual(stdout, "")
+            self.assertEqual(return_code, 0, stderr)
+            self.assertIn("MCP Server (stdio) process exiting.", stderr)
 
 
 if __name__ == "__main__":

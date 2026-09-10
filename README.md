@@ -30,7 +30,7 @@ used for AI access.
 | Analytics properties | Every property reachable by the credential could be queried. | `ANALYTICS_MCP_ALLOWED_PROPERTY_IDS` is enforced centrally and defaults to deny-all. Account discovery is filtered to allowed properties. |
 | Tool surface | Nine information/report tools, without a fork-level tool registry invariant. | Ten names are pinned, including non-network `get_capabilities`; every tool is annotated read-only/open-world, and any unreviewed registry change fails startup. |
 | Query/output bounds | Report calls allowed API-scale row limits and returned whole serialized responses. | Reports default to 1,000 rows, can never exceed 10,000, and model-visible output has byte and Codex token ceilings. |
-| Codex deployment | Upstream documentation targeted floating package execution and other clients. | Codex uses the audited checkout's virtual environment over STDIO with a second enabled-tool allowlist, prompt approvals, and required startup. |
+| Codex deployment | Upstream documentation targeted floating package execution and other clients. | Codex uses the audited checkout's virtual environment over STDIO with a second enabled-tool allowlist, prompt approvals, and optional startup so an Analytics initialization failure cannot block unrelated tasks. |
 | Dependencies and secrets | Runtime dependency ranges were not committed as a lock; credential ignore patterns were limited. | `uv.lock` freezes the environment; OAuth material must stay outside the checkout, token writes are atomic, symlink targets are rejected, and Windows ACL setup is documented. |
 | Errors and hostile data | Unexpected failures could expose detailed exception text or tracebacks. | Unexpected details are sanitized, MCP failures are marked as errors, and server instructions classify Analytics strings as untrusted data rather than instructions. |
 | Verification | Upstream test coverage. | Security invariants, real STDIO negotiation/calls, packaging, static checks, dependency audit, and secret scanning are recorded in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). |
@@ -170,6 +170,23 @@ Copy and edit [`config/codex.example.toml`](config/codex.example.toml), then
 place its server section in `~/.codex/config.toml`. It binds Codex to this
 checkout's virtual environment, uses STDIO only, pins the visible tool names,
 and requests approval for every credentialed call.
+
+Keep the server enabled with `required = false`. Codex documents that
+`required = true` makes startup fail when an enabled MCP server cannot
+initialize. Analytics should be available when healthy, but an OAuth, API, or
+process startup problem should not prevent unrelated tasks from opening. See
+the official [Codex MCP configuration
+reference](https://developers.openai.com/codex/mcp#other-configuration-options).
+
+Codex can start a separate STDIO process for each local client or agent host.
+Multiple sibling `analytics_mcp.server` processes therefore do not, by
+themselves, show that this server is spawning copies of itself. Do not add a
+global singleton lock: each process is attached to its own STDIO client. Idle
+and initialized lifecycle probes exit promptly when that client closes standard
+input, and the test suite includes a process-level EOF regression check. Reusing
+one persistent process would require an explicit Streamable HTTP or broker
+architecture and a new security review rather than a silent change to this
+fork's local-STDIO boundary.
 
 Restart the local Codex client after changing MCP configuration. Use `/mcp` to
 confirm the server is attached, then call `get_capabilities` before making a
